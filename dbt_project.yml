@@ -15,11 +15,14 @@ clean-targets:
   - "target"
   - "dbt_packages"
 
+# Disable partial parsing to avoid stale cache issues
+flags:
+  partial_parse: false
+
 models:
   CARS_FUEL:
     +materialized: view
     staging:
-      +schema: dbt_shamrouni
+      +materialized: view
     marts:
-      +schema: dbt_shamrouni
       +materialized: table

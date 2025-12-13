@@ -5,11 +5,11 @@ SELECT DISTINCT
     make,
     model,
     year,
-    VClass as vehicle_class,
-    displ as displacement,
+    transmission as vehicle_class,
+    displacement,
     cylinders,
-    trany as transmission,
+    transmission,
     drive as drive_type,
-    fuelType as fuel_type
+    primary_fuel_type as fuel_type
 FROM {{ ref('stg_vehicles') }}
 ORDER BY make, model, year

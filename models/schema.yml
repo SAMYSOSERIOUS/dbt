@@ -1,31 +1,5 @@
 version: 2
 
-sources:
-  - name: raw
-    description: "Raw data loaded from external APIs"
-    tables:
-      - name: vehicles
-        description: "Vehicle efficiency data from FuelEconomy.gov"
-        columns:
-          - name: id
-            description: "Unique vehicle identifier"
-          - name: make
-            description: "Vehicle manufacturer"
-          - name: model  
-            description: "Vehicle model name"
-          - name: year
-            description: "Model year"
-          - name: combined_mpg
-            description: "Combined city/highway MPG rating"
-
-      - name: fuel_prices
-        description: "Real-time fuel prices from EIA API"
-        columns:
-          - name: period
-            description: "Price reporting period"
-          - name: fuel_price_usd_per_gallon
-            description: "Fuel price in USD per gallon"
-
 models:
   # Staging Models
   - name: stg_vehicles
@@ -46,8 +20,9 @@ models:
         tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 5
-              max_value: 100
+              arguments:
+                min_value: 5
+                max_value: 100
       
       - name: city_mpg
         tests:
@@ -61,8 +36,9 @@ models:
         tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 100
-              max_value: 10000
+              arguments:
+                min_value: 100
+                max_value: 10000
 
   - name: stg_fuel_prices
     description: "Fuel price staging data with trends"
@@ -78,8 +54,9 @@ models:
         tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 0.5
-              max_value: 10.0
+              arguments:
+                min_value: 0.5
+                max_value: 10.0
               config:
                 severity: warn
 
@@ -138,8 +115,9 @@ models:
         tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 1980
-              max_value: 2030
+              arguments:
+                min_value: 1980
+                max_value: 2030
       
       - name: vehicle_class
         description: "Vehicle classification"
@@ -148,8 +126,9 @@ models:
         description: "Engine displacement in liters"
         tests:
           - dbt_utils.accepted_range:
-              min_value: 0
-              max_value: 10
+              arguments:
+                min_value: 0
+                max_value: 10
               config:
                 severity: warn
       
@@ -179,15 +158,17 @@ models:
         description: "Month number (1-12)"
         tests:
           - dbt_utils.accepted_range:
-              min_value: 1
-              max_value: 12
+              arguments:
+                min_value: 1
+                max_value: 12
       
       - name: quarter
         description: "Quarter number (1-4)"
         tests:
           - dbt_utils.accepted_range:
-              min_value: 1
-              max_value: 4
+              arguments:
+                min_value: 1
+                max_value: 4
   
   # Fact Table
   - name: fct_vehicle_costs
@@ -229,32 +210,36 @@ models:
         tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 5
-              max_value: 100
+              arguments:
+                min_value: 5
+                max_value: 100
       
       - name: city_mpg
         description: "City MPG"
         tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 5
-              max_value: 100
+              arguments:
+                min_value: 5
+                max_value: 100
       
       - name: highway_mpg
         description: "Highway MPG"
         tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 5
-              max_value: 100
+              arguments:
+                min_value: 5
+                max_value: 100
       
       - name: annual_fuel_cost
         description: "Estimated annual fuel cost"
         tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 0
-              max_value: 10000
+              arguments:
+                min_value: 0
+                max_value: 10000
               config:
                 severity: warn
       
@@ -268,8 +253,9 @@ models:
         tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 0.5
-              max_value: 10.0
+              arguments:
+                min_value: 0.5
+                max_value: 10.0
               config:
                 severity: warn
       

@@ -1,10 +1,20 @@
 {{ config(materialized='table') }}
 
-SELECT DISTINCT
+WITH manufacturer_stats AS (
+    SELECT 
+        make,
+        COUNT(*) as total_models,
+        MIN(year) as first_year,
+        MAX(year) as latest_year
+    FROM {{ ref('stg_vehicles') }}
+    GROUP BY make
+)
+
+SELECT 
     ROW_NUMBER() OVER (ORDER BY make) as manufacturer_key,
     make as manufacturer_name,
-    COUNT(*) OVER (PARTITION BY make) as total_models,
-    MIN(year) OVER (PARTITION BY make) as first_year,
-    MAX(year) OVER (PARTITION BY make) as latest_year
-FROM {{ ref('stg_vehicles') }}
+    total_models,
+    first_year,
+    latest_year
+FROM manufacturer_stats
 ORDER BY make

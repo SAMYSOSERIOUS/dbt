@@ -1,5 +1,13 @@
 {{ config(materialized='view') }}
 
+WITH deduplicated AS (
+    SELECT 
+        period,
+        AVG(fuel_price_usd_per_gallon) as fuel_price_usd_per_gallon
+    FROM {{ source('raw', 'fuel_prices') }}
+    GROUP BY period
+)
+
 SELECT 
     period,
     fuel_price_usd_per_gallon,
@@ -15,5 +23,5 @@ SELECT
         ELSE 'Stable'
     END as price_trend
 
-FROM {{ source('raw', 'fuel_prices') }}
+FROM deduplicated
 ORDER BY period
