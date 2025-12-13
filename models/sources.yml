@@ -1,0 +1,33 @@
+version: 2
+
+sources:
+  - name: raw
+    description: "Raw data from CARS_FUEL automated pipeline"
+    database: samidm
+    schema: raw
+    tables:
+      - name: vehicles
+        description: "Vehicle data from FuelEconomy.gov"
+        columns:
+          - name: make
+            description: "Vehicle manufacturer"
+          - name: model
+            description: "Vehicle model"
+          - name: year
+            description: "Model year"
+          - name: city08
+            description: "City MPG"
+          - name: highway08
+            description: "Highway MPG"
+          - name: comb08
+            description: "Combined MPG"
+          - name: displ
+            description: "Engine displacement"
+
+      - name: fuel_prices
+        description: "Fuel price data from EIA API"
+        columns:
+          - name: period
+            description: "Date period"
+          - name: fuel_price_usd_per_gallon
+            description: "Fuel price in USD"
