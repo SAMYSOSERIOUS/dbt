@@ -266,11 +266,13 @@ models:
         tests:
           - not_null
           - accepted_values:
-              values: ['Excellent Efficiency', 'High Efficiency', 'Average Efficiency', 'Low Efficiency']
+              arguments:
+                values: ['Excellent Efficiency', 'High Efficiency', 'Average Efficiency', 'Low Efficiency']
       
       - name: cost_tier
         description: "Cost classification"
         tests:
           - not_null
           - accepted_values:
-              values: ['Very Low Cost', 'Low Cost', 'Medium Cost', 'High Cost', 'Very High Cost']
+              arguments:
+                values: ['Very Low Cost', 'Low Cost', 'Medium Cost', 'High Cost', 'Very High Cost']
