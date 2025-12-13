@@ -86,7 +86,7 @@ models:
         tests:
           - not_null
       
-      - name: last_year
+      - name: latest_year
         description: "Latest year in dataset"
         tests:
           - not_null
