@@ -179,16 +179,18 @@ models:
         tests:
           - not_null
           - relationships:
-              to: ref('dim_vehicles')
-              field: vehicle_key
+              arguments:
+                to: ref('dim_vehicles')
+                field: vehicle_key
       
       - name: manufacturer_key
         description: "Foreign key to dim_manufacturers"
         tests:
           - not_null
           - relationships:
-              to: ref('dim_manufacturers')
-              field: manufacturer_key
+              arguments:
+                to: ref('dim_manufacturers')
+                field: manufacturer_key
       
       - name: make
         description: "Vehicle manufacturer"
