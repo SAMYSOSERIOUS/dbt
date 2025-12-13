@@ -19,7 +19,6 @@ models:
   CARS_FUEL:
     +materialized: view
     staging:
-      +schema: dbt_shamrouni
+      +materialized: view
     marts:
-      +schema: dbt_shamrouni
       +materialized: table

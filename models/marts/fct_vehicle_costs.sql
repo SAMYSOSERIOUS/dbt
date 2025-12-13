@@ -1,55 +1,78 @@
 {{ config(materialized='table') }}
 
-WITH manufacturer_metrics AS (
-    SELECT 
-        make,
-        efficiency_category,
-        COUNT(*) as vehicle_count,
-        ROUND(AVG(combined_mpg), 2) as avg_mpg,
-        ROUND(AVG(annual_fuel_cost), 2) as avg_annual_cost,
-        ROUND(MIN(annual_fuel_cost), 2) as min_annual_cost,
-        ROUND(MAX(annual_fuel_cost), 2) as max_annual_cost,
-        ROUND(STDDEV(annual_fuel_cost), 2) as cost_std_dev,
-        ROUND(AVG(displacement), 2) as avg_displacement,
-        COUNT(DISTINCT year) as year_range
-    FROM {{ ref('stg_vehicles') }}
-    GROUP BY make, efficiency_category
+-- Star Schema Fact Table: Vehicle Costs
+-- Links dimension tables via foreign keys
+
+WITH latest_fuel_price AS (
+    SELECT fuel_price_usd_per_gallon
+    FROM {{ ref('stg_fuel_prices') }}
+    ORDER BY period DESC
+    LIMIT 1
 ),
 
-cost_rankings AS (
+vehicle_costs AS (
     SELECT 
-        *,
-        ROW_NUMBER() OVER (ORDER BY avg_annual_cost) as cost_rank,
-        ROW_NUMBER() OVER (ORDER BY avg_mpg DESC) as efficiency_rank
-    FROM manufacturer_metrics
-    WHERE vehicle_count >= 5  -- Only include manufacturers with sufficient data
+        v.vehicle_key,
+        m.manufacturer_key,
+        v.make,
+        v.model,
+        v.year,
+        v.vehicle_class,
+        s.combined_mpg,
+        s.city_mpg,
+        s.highway_mpg,
+        s.displacement,
+        s.efficiency_category,
+        
+        -- Calculate costs using latest fuel price
+        ROUND((15000 / s.combined_mpg) * f.fuel_price_usd_per_gallon, 2) as annual_fuel_cost,
+        ROUND((100 / s.combined_mpg) * f.fuel_price_usd_per_gallon, 2) as cost_per_100_miles,
+        f.fuel_price_usd_per_gallon as current_fuel_price
+        
+    FROM {{ ref('stg_vehicles') }} s
+    CROSS JOIN latest_fuel_price f
+    LEFT JOIN {{ ref('dim_vehicles') }} v 
+        ON s.make = v.make 
+        AND s.model = v.model 
+        AND s.year = v.year
+    LEFT JOIN {{ ref('dim_manufacturers') }} m 
+        ON s.make = m.manufacturer_name
 )
 
 SELECT 
+    -- Dimension Keys (Foreign Keys)
+    vehicle_key,
+    manufacturer_key,
+    
+    -- Attributes
     make,
-    efficiency_category,
-    vehicle_count,
-    avg_mpg,
-    avg_annual_cost,
-    min_annual_cost,
-    max_annual_cost,
-    cost_std_dev,
-    avg_displacement,
-    year_range,
-    cost_rank,
-    efficiency_rank,
+    model,
+    year,
     
-    -- Performance tiers
+    -- Metrics
+    combined_mpg,
+    city_mpg,
+    highway_mpg,
+    annual_fuel_cost,
+    cost_per_100_miles,
+    current_fuel_price,
+    
+    -- Performance Tiers
     CASE 
-        WHEN cost_rank <= 10 THEN 'Top 10 Most Economical'
-        WHEN efficiency_rank <= 10 THEN 'Top 10 Most Efficient'
-        WHEN avg_mpg >= 30 THEN 'High Efficiency'
-        WHEN avg_annual_cost <= 2000 THEN 'Low Cost'
-        ELSE 'Standard'
-    END as performance_tier,
+        WHEN combined_mpg >= 40 THEN 'Excellent Efficiency'
+        WHEN combined_mpg >= 30 THEN 'High Efficiency'
+        WHEN combined_mpg >= 20 THEN 'Average Efficiency'
+        ELSE 'Low Efficiency'
+    END as efficiency_tier,
     
-    -- Analysis metadata
-    CURRENT_TIMESTAMP() as analysis_timestamp
+    CASE 
+        WHEN annual_fuel_cost <= 1500 THEN 'Very Low Cost'
+        WHEN annual_fuel_cost <= 2000 THEN 'Low Cost'
+        WHEN annual_fuel_cost <= 2500 THEN 'Medium Cost'
+        WHEN annual_fuel_cost <= 3000 THEN 'High Cost'
+        ELSE 'Very High Cost'
+    END as cost_tier
 
-FROM cost_rankings
-ORDER BY avg_annual_cost
+FROM vehicle_costs
+WHERE vehicle_key IS NOT NULL AND manufacturer_key IS NOT NULL
+ORDER BY annual_fuel_cost
