@@ -1,9 +1,9 @@
 {{ config(materialized='view') }}
 
 WITH latest_fuel_price AS (
-    SELECT fuel_price_usd_per_gallon
+    SELECT price as fuel_price_usd_per_gallon
     FROM {{ source('raw', 'fuel_prices') }}
-    ORDER BY period DESC
+    ORDER BY date DESC
     LIMIT 1
 )
 
