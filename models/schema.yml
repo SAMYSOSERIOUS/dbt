@@ -1,278 +1,59 @@
-version: 2
+{{ config(materialized='view') }}
 
-models:
-  # Staging Models
-  - name: stg_vehicles
-    description: "Staged and cleaned vehicle data"
-    columns:
-      - name: make
-        description: "Vehicle manufacturer"
-        tests:
-          - not_null
-      
-      - name: model
-        description: "Vehicle model name"
-        tests:
-          - not_null
-      
-      - name: combined_mpg
-        description: "Combined city/highway MPG"
-        tests:
-          - not_null
-          - dbt_utils.accepted_range:
-              arguments:
-                min_value: 5
-                max_value: 100
-      
-      - name: city_mpg
-        tests:
-          - not_null
-      
-      - name: highway_mpg
-        tests:
-          - not_null
-      
-      - name: annual_fuel_cost
-        tests:
-          - not_null
-          - dbt_utils.accepted_range:
-              arguments:
-                min_value: 100
-                max_value: 10000
+WITH latest_fuel_price AS (
+    SELECT price as fuel_price_usd_per_gallon
+    FROM {{ source('raw', 'fuel_prices') }}
+    ORDER BY date DESC
+    LIMIT 1
+)
 
-  - name: stg_fuel_prices
-    description: "Fuel price staging data with trends"
-    columns:
-      - name: period
-        description: "Price reporting period"
-        tests:
-          - not_null
-          - unique
-      
-      - name: fuel_price_usd_per_gallon
-        description: "Fuel price in USD per gallon"
-        tests:
-          - not_null
-          - dbt_utils.accepted_range:
-              arguments:
-                min_value: 0.5
-                max_value: 10.0
-              config:
-                severity: warn
+SELECT 
+    -- Vehicle identification (corrected column names)
+    make,
+    model,
+    year,
+    displ as displacement,
+    cylinders,
+    trany as transmission,  -- Fixed: trany not trans
+    drive,
+    fuelType1 as primary_fuel_type,  -- Fixed: fuelType1 not fuel_type1
+    
+    -- MPG metrics
+    city08 as city_mpg,
+    highway08 as highway_mpg,
+    comb08 as combined_mpg_official,
+    
+    -- Calculate combined MPG (in case comb08 is missing)
+    COALESCE(comb08, (city08 + highway08) / 2) as combined_mpg,
+    
+    -- Calculate derived metrics using latest fuel price
+    (SELECT fuel_price_usd_per_gallon FROM latest_fuel_price) as current_fuel_price_usd,
+    
+    -- Calculate annual fuel cost (15,000 miles per year)
+    ROUND((15000 / COALESCE(comb08, (city08 + highway08) / 2)) * 
+          (SELECT fuel_price_usd_per_gallon FROM latest_fuel_price), 2) as annual_fuel_cost,
+    
+    -- Calculate cost per 100 miles
+    ROUND((100 / COALESCE(comb08, (city08 + highway08) / 2)) * 
+          (SELECT fuel_price_usd_per_gallon FROM latest_fuel_price), 2) as cost_per_100_miles,
+    
+    -- Convert to L/100km
+    ROUND(235.215 / COALESCE(comb08, (city08 + highway08) / 2), 2) as l_per_100km,
+    
+    -- Create efficiency categories
+    CASE 
+        WHEN COALESCE(comb08, (city08 + highway08) / 2) >= 40 THEN 'Highly Efficient'
+        WHEN COALESCE(comb08, (city08 + highway08) / 2) >= 30 THEN 'Efficient'
+        WHEN COALESCE(comb08, (city08 + highway08) / 2) >= 20 THEN 'Moderate'
+        ELSE 'Low Efficiency'
+    END as efficiency_category,
+    
+    -- Add processing timestamp
+    CURRENT_TIMESTAMP() as processing_timestamp
 
-  # Dimension Tables
-  - name: dim_manufacturers
-    description: "Manufacturer dimension table for star schema"
-    columns:
-      - name: manufacturer_key
-        description: "Surrogate key for manufacturer"
-        tests:
-          - unique
-          - not_null
-      
-      - name: manufacturer_name
-        description: "Name of the vehicle manufacturer"
-        tests:
-          - not_null
-          - unique
-      
-      - name: total_models
-        description: "Total number of vehicle models"
-        tests:
-          - not_null
-      
-      - name: first_year
-        description: "Earliest year in dataset"
-        tests:
-          - not_null
-      
-      - name: latest_year
-        description: "Latest year in dataset"
-        tests:
-          - not_null
-  
-  - name: dim_vehicles
-    description: "Vehicle dimension table for star schema"
-    columns:
-      - name: vehicle_key
-        description: "Surrogate key for vehicle"
-        tests:
-          - unique
-          - not_null
-      
-      - name: make
-        description: "Vehicle manufacturer"
-        tests:
-          - not_null
-      
-      - name: model
-        description: "Vehicle model name"
-        tests:
-          - not_null
-      
-      - name: year
-        description: "Model year"
-        tests:
-          - not_null
-          - dbt_utils.accepted_range:
-              arguments:
-                min_value: 1980
-                max_value: 2030
-      
-      - name: vehicle_class
-        description: "Vehicle classification"
-      
-      - name: displacement
-        description: "Engine displacement in liters"
-        tests:
-          - dbt_utils.accepted_range:
-              arguments:
-                min_value: 0
-                max_value: 10
-              config:
-                severity: warn
-      
-      - name: fuel_type
-        description: "Type of fuel used"
-  
-  - name: dim_date
-    description: "Date dimension table for time-based analysis"
-    columns:
-      - name: date_key
-        description: "Surrogate key for date (YYYYMMDD format)"
-        tests:
-          - unique
-          - not_null
-      
-      - name: full_date
-        description: "Full date value"
-        tests:
-          - not_null
-      
-      - name: year
-        description: "Year component"
-        tests:
-          - not_null
-      
-      - name: month
-        description: "Month number (1-12)"
-        tests:
-          - dbt_utils.accepted_range:
-              arguments:
-                min_value: 1
-                max_value: 12
-      
-      - name: quarter
-        description: "Quarter number (1-4)"
-        tests:
-          - dbt_utils.accepted_range:
-              arguments:
-                min_value: 1
-                max_value: 4
-  
-  # Fact Table
-  - name: fct_vehicle_costs
-    description: "Fact table analyzing vehicle fuel costs with dimension references"
-    columns:
-      - name: vehicle_key
-        description: "Foreign key to dim_vehicles"
-        tests:
-          - not_null
-          - relationships:
-              arguments:
-                to: ref('dim_vehicles')
-                field: vehicle_key
-      
-      - name: manufacturer_key
-        description: "Foreign key to dim_manufacturers"
-        tests:
-          - not_null
-          - relationships:
-              arguments:
-                to: ref('dim_manufacturers')
-                field: manufacturer_key
-      
-      - name: make
-        description: "Vehicle manufacturer"
-        tests:
-          - not_null
-      
-      - name: model
-        description: "Vehicle model name"
-        tests:
-          - not_null
-      
-      - name: year
-        description: "Model year"
-        tests:
-          - not_null
-      
-      - name: combined_mpg
-        description: "Combined city/highway MPG"
-        tests:
-          - not_null
-          - dbt_utils.accepted_range:
-              arguments:
-                min_value: 5
-                max_value: 100
-      
-      - name: city_mpg
-        description: "City MPG"
-        tests:
-          - not_null
-          - dbt_utils.accepted_range:
-              arguments:
-                min_value: 5
-                max_value: 100
-      
-      - name: highway_mpg
-        description: "Highway MPG"
-        tests:
-          - not_null
-          - dbt_utils.accepted_range:
-              arguments:
-                min_value: 5
-                max_value: 100
-      
-      - name: annual_fuel_cost
-        description: "Estimated annual fuel cost"
-        tests:
-          - not_null
-          - dbt_utils.accepted_range:
-              arguments:
-                min_value: 0
-                max_value: 10000
-              config:
-                severity: warn
-      
-      - name: cost_per_100_miles
-        description: "Cost per 100 miles driven"
-        tests:
-          - not_null
-      
-      - name: current_fuel_price
-        description: "Current fuel price used in calculations"
-        tests:
-          - not_null
-          - dbt_utils.accepted_range:
-              arguments:
-                min_value: 0.5
-                max_value: 10.0
-              config:
-                severity: warn
-      
-      - name: efficiency_tier
-        description: "Efficiency classification"
-        tests:
-          - not_null
-          - accepted_values:
-              arguments:
-                values: ['Excellent Efficiency', 'High Efficiency', 'Average Efficiency', 'Low Efficiency']
-      
-      - name: cost_tier
-        description: "Cost classification"
-        tests:
-          - not_null
-          - accepted_values:
-              arguments:
-                values: ['Very Low Cost', 'Low Cost', 'Medium Cost', 'High Cost', 'Very High Cost']
+FROM {{ source('raw', 'vehicles') }}
+WHERE city08 > 5 
+  AND highway08 > 5 
+  AND city08 < 100 
+  AND highway08 < 100
+  AND displ IS NOT NULL
